@@ -14,65 +14,125 @@ References:
 (3) Stamnes et al, 1988, Applied Optics.
 
 # Installation
-1) Download to your own computer, or upload to your Linux server. 
+1) Download to your own computer, or upload to your Linux server.
 
-2) Install the required libraries using conda:
+2) Install the required libraries using conda. Python 3.7 is the most tested
+environment for this repository.
 
-+ cd $PyRADS-shortwave
-+ conda create -n pyrads python=3.7 numpy scipy matplotlib gfortran
-+ conda activate pyrads
+```
+cd /path/to/PyRADS-shortwave
+conda create -n pyrads python=3.7 numpy scipy matplotlib gfortran
+conda activate pyrads
+```
+
+On recent macOS machines, especially Apple Silicon machines running an
+`osx-64` conda environment under Rosetta, it can be useful to install the
+compiler packages explicitly:
+
+```
+conda install -n pyrads -c conda-forge gfortran_osx-64 clang_osx-64
+```
 
 3) Manually compile the MTCKD model:
-- cd $PyRADS-shortwave/DATA/MT_CKD_continuum/cntnm.H2O_N2/build
-- (*DEFAULT* on a Mac, using gfortran installed with conda) make -f make_cntnm osxGNUCONDAdbl
-- (on a Mac) make -f make_cntnm osxGNUdbl
-- (on Linux) open the file "README.build_instructions" and find the command for your platform. For example, if you are using gfortran,
-  - make -f make_cntnm linuxGNUdbl
-  - After compiling, you will find a database named with "cntnm_v3.2_linux_gnu_dbl" in PyRADS-shortwave/DATA/MT_CKD_continuum/cntnm.H2O_N2
-  - find "Absorption_Continuum_MTCKD.py" in PyRADS-shortwave/pyrads. Change paths in line 27 - line 31.
 
-3) Manually install the pyDISORT wrapper, which solves
-  the radiative transfer equations with scattering (=in the shortwave).
+```
+cd /path/to/PyRADS-shortwave/DATA/MT_CKD_continuum/cntnm.H2O_N2/build
+make -f make_cntnm osxGNUCONDAdbl
+```
 
-- cd $PyRADS-shortwave/PyDISORT3
-- python setup.py install
+Use `osxGNUCONDAdbl` on macOS when using conda's `gfortran`. If you are using a
+non-conda Fortran compiler on macOS, try `osxGNUdbl` instead.
 
-  To test whether pyDISORT was successfully installed:
-- cd $PyRADS-shortwave/PyDISORT3
-- python test_disort.py
+On Linux, open `README.build_instructions` in the same directory and choose the
+command for your platform. For example, with gfortran:
 
-  If the installation failed, the test scripts will return "ImportError: No module named disort".
-  If the installation worked, the test scripts will print a large slew of output.
-  If using a separate conda environment, later remember to load that environment with 'source activate' before
-  running pyDISORT or importing pyRADS.
+```
+make -f make_cntnm linuxGNUdbl
+```
 
-- find "Get_Fluxes_pyDISORT.py" in PyRADS-shortwave/pyrads. Add two sentences before you import disort at line 4
-- import sys,os
-- sys.path.append("../PyDISORT3")
+After compiling on Linux, you may need to update the executable name in
+`pyrads/Absorption_Continuum_MTCKD.py` to match the generated
+`cntnm_v3.2_*` binary.
 
-4) Run test scripts
+4) Manually install the pyDISORT wrapper, which solves the radiative transfer
+equations with scattering, used for the shortwave calculations.
+
+On recent macOS versions, set the SDK path before building:
+
+```
+export SDKROOT=$(xcrun --show-sdk-path)
+export CONDA_BUILD_SYSROOT=$SDKROOT
+export MACOSX_DEPLOYMENT_TARGET=10.9
+export LDFLAGS="-isysroot $SDKROOT"
+export CFLAGS="-isysroot $SDKROOT"
+```
+
+Then install pyDISORT:
+
+```
+cd /path/to/PyRADS-shortwave/PyDISORT3
+python setup.py install
+```
+
+To test whether pyDISORT was successfully installed:
+
+```
+cd /path/to/PyRADS-shortwave/PyDISORT3
+python test_disort.py
+python test/test_Rayleigh.py
+python -c "import disort; print(disort.__file__)"
+```
+
+If the installation failed, the test scripts will return an import or dynamic
+library error. If the installation worked, the test scripts will print a large
+amount of DISORT output.
+
+5) Run test scripts
 
 To compute outgoing longwave radiation (OLR) in W/m2 for a given surface temperature:
-- cd $PyRADS-shortwave/Test01.olr
-- python compute_olr_h2o.py
+
+```
+cd /path/to/PyRADS-shortwave/Test01.olr
+python compute_olr_h2o.py
+```
 
 To compute OLRs for a set of surface temperatures and save the resulting output to txt:
-- cd $PyRADS-shortwave/Test02.runaway
-- python compute_olr_h2o.01.100RH.py
+
+```
+cd /path/to/PyRADS-shortwave/Test02.runaway
+python compute_olr_h2o.01.100RH.py
+```
 
 To compute SW fluxes in W/m2 for a given surface temperature (here, 300 K) over a *limited* part of the solar spectrum (here, 1000-2000 cm-1) at some resolution (here, 1 cm-1; see note below) and save the resulting output to txt file in the same directory ("."):
-- cd $PyRADS-shortwave/Test03.sw
-- python compute_sw_h2o.py 1000. 2000. 1. 300. .
+
+```
+cd /path/to/PyRADS-shortwave/Test03.sw
+python compute_sw_h2o.py 1000. 2000. 1. 300. .
+```
 
 To stitch together the SW fluxes across the entire solar spectrum (takes a while even at low spectral res; see note below):
-- cd $PyRADS-shortwave/Test04.sw_full_spectrum
-- python compute_sw_h2o.py 1000. 10000. 1. 300. .
-- python compute_sw_h2o.py 10000. 20000. 1. 300. .
-- python compute_sw_h2o.py 20000. 30000. 1. 300. .
-- python compute_sw_h2o.py 30000. 90000. 10. 300. .
-- python merge_spectrum.py
 
-NOTE: computing opacities + running pyDISORT over the entire solar spectrum becomes computationally very costly. It is much faster to split the spectral calculations up over many spectral chunks, distribute those over parallel processors, and them combine the spectral resolved calculations at the end. Use Merge_Spectral_Output.py to combine discrete chunks of the spectrum.
+```
+cd /path/to/PyRADS-shortwave/Test04.sw_full_spectrum
+python compute_sw_h2o.py 1000. 10000. 1. 300. .
+python compute_sw_h2o.py 10000. 20000. 1. 300. .
+python compute_sw_h2o.py 20000. 30000. 1. 300. .
+python compute_sw_h2o.py 30000. 50000. 1. 300. .
+python compute_sw_h2o.py 50000. 80000. 1. 300. .
+python merge_spectrum.py
+```
+
+The `Test04.sw_full_spectrum` directory includes example precomputed spectral
+chunks, so `python merge_spectrum.py` can be used as a quick merge test without
+rerunning the full spectrum. To verify the full-spectrum compute script without
+waiting for all chunks, run a small interval first, for example:
+
+```
+cd /path/to/PyRADS-shortwave/Test04.sw_full_spectrum
+python compute_sw_h2o.py 1000. 1002. 1. 300. /tmp/pyrads-test04-small
+```
+
+NOTE: computing opacities + running pyDISORT over the entire solar spectrum becomes computationally very costly. It is much faster to split the spectral calculations up over many spectral chunks, distribute those over parallel processors, and then combine the spectrally resolved calculations at the end. Use `merge_spectrum.py` or `pyrads/Merge_Spectral_Output.py` to combine discrete chunks of the spectrum.
 
 NOTE: spectral resolution should reflect the available data. E.g., HITRAN2016 doesn't contain H2O lines beyond ~25000 cm-1, so there is no need to retain high spectral resolution in the UV.
 
