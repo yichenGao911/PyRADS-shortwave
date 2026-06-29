@@ -9,6 +9,8 @@ import os
 import sys
 import glob
 import string
+import shutil
+import importlib.util
 from numpy.distutils.core import setup
 from numpy.distutils import fcompiler
 from distutils.dep_util import newer
@@ -36,7 +38,6 @@ Extensions = [
     ]
 
 # figure out which compiler we're goint to use
-compiler = fcompiler.get_default_fcompiler(requiref90=True)
 compiler = 'gnu95'  # ensure gfortran
 for i in range(len(sys.argv)):
     if '--fcompiler' in sys.argv[i]:
@@ -48,8 +49,8 @@ print( 'Using %s compiler' % compiler )
 if compiler == 'gnu95' or compiler == 'gnu':
     # f77flags='-ffixed-line-length-132 -fdefault-real-8'
     # f90flags='-fdefault-real-8'
-    f77flags='-O3'
-    f90flags='-O3'
+    f77flags='-O3 -fallow-argument-mismatch'
+    f90flags='-O3 -fallow-argument-mismatch'
 elif compiler == 'intel' or compiler == 'intelem':
     f77flags='-132 -r8 -w95 -w90 -mp'
     f90flags='-r8 -w95 -mp'
@@ -91,6 +92,12 @@ def buildNeeded(target,src):
     target = os.path.join('lib/disort',target)
     if not os.path.exists(target):
         return True
+    try:
+        spec = importlib.util.spec_from_file_location('_disort', target)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    except Exception:
+        return True
     for file in src:
         if newer(file,target):
             return True
@@ -124,13 +131,13 @@ def build_ext(name=None, dir=None, cppflags='', f77flags='', f90flags='',
         F2pyCommand.append('-I%s' % os.path.join(dir,'include'))
         F2pyCommand.append('-I%s' % os.path.join(dir,'src'))
         F2pyCommand.append('-I%s' % os.path.join(dir,'src','include'))
-        if incdir is not '':
+        if incdir != '':
             for i in incdir:
                 F2pyCommand.append('-I%s' % i)
-        if libdir is not '':
+        if libdir != '':
             for i in libdir:
                 F2pyCommand.append('-L%s' % i)
-        if lib is not '':
+        if lib != '':
             for i in lib:
                 F2pyCommand.append('-l%s' % i)
         F2pyCommand.append('--f77flags=%s' % f77flags)
@@ -144,7 +151,11 @@ def build_ext(name=None, dir=None, cppflags='', f77flags='', f90flags='',
         if os.system(F2pyCommand) > 0:
             print( '+++ Compilation failed' )
             sys.exit()
-        os.system('mv -f _%s.so lib/disort' % name)
+        built_extensions = glob.glob('_%s*.so' % name)
+        if not built_extensions:
+            print('+++ Compilation failed: no _%s*.so generated' % name)
+            sys.exit(1)
+        shutil.move(built_extensions[0], os.path.join('lib', 'disort', '_%s.so' % name))
         # os.system('rm -f _%s.pyf' % name)
 
 # Build all extensions

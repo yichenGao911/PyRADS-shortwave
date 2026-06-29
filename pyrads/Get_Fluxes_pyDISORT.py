@@ -60,12 +60,12 @@ def get_fluxes(pres_output,pres,temp,wave,Tau,Omega,cosz,Lstar,alpha_surf, \
     # ---
     # if output is at user-defined levels:
     #    define those levels
-    if pres_output=="toa":
+    if isinstance(pres_output, str) and pres_output=="toa":
         # (if we only want TOA output)
         p = np.array([0.])
         def get_utau(tau=None,p=None,pres=None):
             return np.array([0.])
-    elif pres_output=="input":
+    elif isinstance(pres_output, str) and pres_output=="input":
         # (output on input grid)
         p = pres
         def get_utau(tau,p=None,pres=None):
@@ -78,7 +78,8 @@ def get_fluxes(pres_output,pres,temp,wave,Tau,Omega,cosz,Lstar,alpha_surf, \
         #     also can get utau>max(tau) because of round-off?? manually fix -> still crashes!
         p = pres_output
         def get_utau(tau,p,pres):
-            utau = 10**( np.interp( p,pres,np.log10(tau) ))
+            with np.errstate(divide='ignore'):
+                utau = 10**( np.interp( p,pres,np.log10(tau) ))
             utau[np.isnan(utau)] = 0.
             return utau
 
